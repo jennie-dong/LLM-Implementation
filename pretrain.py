@@ -274,7 +274,7 @@ while x.size(1) < max_length:
     # 前向传播
     with torch.no_grad():
         logits = model(x)  
-        logits = logits[:, -1, :] 
+        logits = logits[:, -1, :]    
         # 把logits转换为概率分布 
         probs = F.softmax(logits, dim=-1)
         topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
