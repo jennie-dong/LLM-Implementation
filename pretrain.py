@@ -316,8 +316,8 @@ if torch.cuda.is_available():
 enc = tiktoken.get_encoding("gpt2")
 
 total_batch_size = 524288  
-B = 64  
-T = 1024  
+B = 32  
+T = 2048  
 assert total_batch_size % (B * T * ddp_world_size) == 0, "确保总 batch 大小能被 B * T * world_size 整除"
 grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
 if master_process:
@@ -342,7 +342,7 @@ raw_model = model.module if ddp else model  # 获取原始模型
 max_lr = 6e-4
 min_lr = max_lr * 0.1
 warmup_steps = 715
-max_steps = 19073
+max_steps = 19073 *4  # 训练总步数，4倍于原始的 19073 步
 
 def get_lr(it):
     # 1) 前 warmup_steps 步采用线性 warmup
@@ -391,6 +391,16 @@ for step in range(max_steps):
             print(f"验证损失: {val_loss_accum.item():.4f}")
             with open(log_file, "a") as f:
                 f.write(f"{step} val {val_loss_accum.item():.4f}\n")
+            if step > 0 and (step % 5000 == 0 or step == last_step):
+                # optionally write model checkpoints
+                checkpoint_path = os.path.join(log_dir, f"model_{step:05d}.pt")
+                checkpoint = {
+                    'model': raw_model.state_dict(),
+                    'config': raw_model.config,
+                    'step': step,
+                    'val_loss': val_loss_accum.item()
+                }
+                torch.save(checkpoint, checkpoint_path)
 
     # 每隔一段时间评估 HellaSwag
     if (step % 250 == 0 or last_step) and (not use_compile):
